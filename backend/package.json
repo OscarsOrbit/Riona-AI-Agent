@@ -1,0 +1,31 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/socket.io": "^3.0.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "proxy-chain": "^2.5.6",
+    "puppeteer": "^24.2.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-adblocker": "^2.13.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "socket.io": "^4.8.1",
+    "user-agents": "^1.1.444"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}

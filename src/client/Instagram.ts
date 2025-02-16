@@ -9,6 +9,7 @@ import logger from "../config/logger";
 import { Instagram_cookiesExist, loadCookies, saveCookies } from "../utils";
 import { runAgent } from "../Agent";
 import { getInstagramCommentSchema } from "../Agent/schema";
+import { defaultAgentRules, shouldInteractWithPost, generateCommentPrompt } from "../config/agent-rules";
 
 // Add stealth plugin to puppeteer
 puppeteer.use(StealthPlugin());
@@ -109,24 +110,7 @@ async function interactWithPosts(page: any) {
                 break;
             }
 
-            const likeButtonSelector = `${postSelector} svg[aria-label="Like"]`;
-            const likeButton = await page.$(likeButtonSelector);
-            const ariaLabel = await likeButton?.evaluate((el: Element) =>
-                el.getAttribute("aria-label")
-            );
-
-            if (ariaLabel === "Like") {
-                console.log(`Liking post ${postIndex}...`);
-                await likeButton.click();
-                await page.keyboard.press("Enter");
-                console.log(`Post ${postIndex} liked.`);
-            } else if (ariaLabel === "Unlike") {
-                console.log(`Post ${postIndex} is already liked.`);
-            } else {
-                console.log(`Like button not found for post ${postIndex}.`);
-            }
-
-            // Extract and log the post caption
+            // Extract caption first to decide if we should interact
             const captionSelector = `${postSelector} div.x9f619 span._ap3a div span._ap3a`;
             const captionElement = await page.$(captionSelector);
 
@@ -134,31 +118,57 @@ async function interactWithPosts(page: any) {
             if (captionElement) {
                 caption = await captionElement.evaluate((el: HTMLElement) => el.innerText);
                 console.log(`Caption for post ${postIndex}: ${caption}`);
+
+                // Check if there is a '...more' link to expand the caption
+                const moreLinkSelector = `${postSelector} div.x9f619 span._ap3a span div span.x1lliihq`;
+                const moreLink = await page.$(moreLinkSelector);
+                if (moreLink) {
+                    console.log(`Expanding caption for post ${postIndex}...`);
+                    await moreLink.click(); // Click the '...more' link to expand the caption
+                    const expandedCaption = await captionElement.evaluate(
+                        (el: HTMLElement) => el.innerText
+                    );
+                    console.log(`Expanded Caption for post ${postIndex}: ${expandedCaption}`);
+                    caption = expandedCaption;
+                }
+
+                // Check if we should interact with this post based on rules
+                if (!shouldInteractWithPost(caption)) {
+                    console.log(`Skipping post ${postIndex} based on content rules.`);
+                    postIndex++;
+                    continue;
+                }
+
+                // If we get here, the post passed our filters
+                const likeButtonSelector = `${postSelector} svg[aria-label="Like"]`;
+                const likeButton = await page.$(likeButtonSelector);
+                const ariaLabel = await likeButton?.evaluate((el: Element) =>
+                    el.getAttribute("aria-label")
+                );
+
+                if (ariaLabel === "Like") {
+                    console.log(`Liking post ${postIndex}...`);
+                    await likeButton.click();
+                    await page.keyboard.press("Enter");
+                    console.log(`Post ${postIndex} liked.`);
+                } else if (ariaLabel === "Unlike") {
+                    console.log(`Post ${postIndex} is already liked.`);
+                } else {
+                    console.log(`Like button not found for post ${postIndex}.`);
+                }
             } else {
-                console.log(`No caption found for post ${postIndex}.`);
+                console.log(`No caption found for post ${postIndex}, skipping...`);
+                postIndex++;
+                continue;
             }
 
-            // Check if there is a '...more' link to expand the caption
-            const moreLinkSelector = `${postSelector} div.x9f619 span._ap3a span div span.x1lliihq`;
-            const moreLink = await page.$(moreLinkSelector);
-            if (moreLink) {
-                console.log(`Expanding caption for post ${postIndex}...`);
-                await moreLink.click(); // Click the '...more' link to expand the caption
-                const expandedCaption = await captionElement.evaluate(
-                    (el: HTMLElement) => el.innerText
-                );
-                console.log(
-                    `Expanded Caption for post ${postIndex}: ${expandedCaption}`
-                );
-                caption = expandedCaption; // Update caption with expanded content
-            }
 
             // Comment on the post
             const commentBoxSelector = `${postSelector} textarea`;
             const commentBox = await page.$(commentBoxSelector);
             if (commentBox) {
                 console.log(`Commenting on post ${postIndex}...`);
-                const prompt = `Craft a thoughtful, engaging, and mature reply to the following post: "${caption}". Ensure the reply is relevant, insightful, and adds value to the conversation. It should reflect empathy and professionalism, and avoid sounding too casual or superficial. also it should be 300 characters or less. and it should not go against instagram Community Standards on spam. so you will have to try your best to humanize the reply`;
+                const prompt = generateCommentPrompt(caption);
                 const schema = getInstagramCommentSchema();
                 const result = await runAgent(schema, prompt); // Pass the updated caption
                 const comment = result[0]?.comment;
@@ -204,4 +214,3 @@ async function interactWithPosts(page: any) {
 
 
 export { runInstagram };
-
